@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:english_words/english_words.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -5,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:snapping_sheet/snapping_sheet.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -84,10 +88,17 @@ class _RandomWordsState extends State<RandomWords> {
     content: Text('Successfully logged out'),
   );
 
+  final imageErrorSB = const SnackBar(
+    content: Text('“No image selected'),
+  );
+
+  final snappingSheetController = SnappingSheetController();
+  bool is_open = false;
+
   @override
   Widget build(BuildContext context) {
     var curr_status = context.watch<AuthNotifier>().status;
-
+    var pos;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Startup Name Generator'),
@@ -113,46 +124,204 @@ class _RandomWordsState extends State<RandomWords> {
                 ),
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemBuilder: (context, i) {
-          if (i.isOdd) return const Divider();
+      body: (curr_status == Status.authenticated)
+          ? SnappingSheet(
+              controller: snappingSheetController,
+              grabbing: InkWell(
+                  child: Container(
+                    color: Colors.grey,
+                    child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          //context.watch<AuthNotifier>().auth.name
+                          Text(
+                              "Welcome back, ${context.read<AuthNotifier>().user?.email}"),
+                          (is_open == false)
+                              ? Icon(
+                                  Icons.keyboard_arrow_up,
+                                )
+                              : Icon(Icons.keyboard_arrow_down)
+                        ]),
+                  ),
+                  onTap: () {
+                    if (is_open == false) {
+                      pos = snappingSheetController.currentPosition;
+                      snappingSheetController.snapToPosition(
+                        SnappingPosition.factor(positionFactor: 0.3),
+                      );
+                      // setState() {
+                      is_open = true;
+                      // }
+                    } else {
+                      snappingSheetController.setSnappingSheetPosition(pos);
+                      //  setState() {
+                      is_open = false;
+                      // }
+                    }
+                  }),
+              grabbingHeight: 70,
+              sheetBelow: SnappingSheetContent(
+                sizeBehavior: SheetSizeStatic(
+                  size: MediaQuery.of(context).size.height,
+                  expandOnOverflow: false,
+                ),
+                draggable: false,
+                // TODO: Add your sheet content here
+                child: Container(
+                  color: Colors.white,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Flexible(
+                        fit: FlexFit.tight,
+                        flex: 2,
+                        child: FutureBuilder<ImageProvider>(
+                          future: context.watch<AuthNotifier>().downloadFile('Avatar_images'),
+                          // a previously-obtained Future<String> or null
+                          builder: (BuildContext context,
+                              AsyncSnapshot<ImageProvider> snapshot) {
+                            if (snapshot.hasData) {
+                              //image picked
+                              return CircleAvatar(
+                                  foregroundImage: snapshot.requireData);
+                            }
+                            return CircleAvatar();
+                          },
+                        ),
+                      ),
+                      Flexible(
+                        fit: FlexFit.tight,
+                        flex: 5,
+                        child: Column(
+                          children: [
+                            Text(
+                              "${context.read<AuthNotifier>().user?.email}",
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  height: 5,
+                                  fontSize: 20),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                final ImagePicker _picker = ImagePicker();
+                                //change avatar
+                                final XFile? image = await _picker.pickImage(
+                                    source: ImageSource.gallery);
 
-          final index = i ~/ 2;
+                                if (image == null) {
+                                  //showing no choice
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(imageErrorSB);
+                                  return;
+                                }
+                                //upload image
+                                context
+                                    .read<AuthNotifier>()
+                                    .uploadFile(image, 'Avatar_images');
+                              },
+                              style: TextButton.styleFrom(
+                                //primary: Colors.white,
+                                backgroundColor: Colors.deepPurple,
+                                //onSurface: Colors.grey,
+                              ),
+                              child: const Text('Change Avatar',
+                                  style: TextStyle(color: Colors.white)),
+                            )
+                          ],
+                        ),
+                      )
+                    ],
+                  ),
+                ),
+              ),
+              child: ListView.builder(
+                padding: const EdgeInsets.all(16.0),
+                itemBuilder: (context, i) {
+                  if (i.isOdd) return const Divider();
 
-          if (index >= _suggestions.length) {
-            _suggestions.addAll(generateWordPairs().take(10));
-          }
-          final alreadySaved =
-              context.watch<SavedNotifier>().contains(_suggestions[index]);
+                  final index = i ~/ 2;
 
-          return ListTile(
-            title: Text(
-              _suggestions[index].asPascalCase,
-              style: _biggerFont,
-            ),
-            trailing: Icon(
-              alreadySaved ? Icons.favorite : Icons.favorite_border,
-              color: alreadySaved ? Colors.red : null,
-              semanticLabel: alreadySaved ? 'Remove from saved' : 'Save',
-            ),
-            onTap: () {
-              // NEW from here ...
-              setState(() {
-                if (alreadySaved) {
-                  context
-                      .read<SavedNotifier>()
-                      .removeFromSaved(_suggestions[index]);
-                } else {
-                  context.read<SavedNotifier>().addToSaved(_suggestions[index]);
+                  if (index >= _suggestions.length) {
+                    _suggestions.addAll(generateWordPairs().take(10));
+                  }
+                  final alreadySaved = context
+                      .watch<SavedNotifier>()
+                      .contains(_suggestions[index]);
+
+                  return ListTile(
+                    title: Text(
+                      _suggestions[index].asPascalCase,
+                      style: _biggerFont,
+                    ),
+                    trailing: Icon(
+                      alreadySaved ? Icons.favorite : Icons.favorite_border,
+                      color: alreadySaved ? Colors.red : null,
+                      semanticLabel:
+                          alreadySaved ? 'Remove from saved' : 'Save',
+                    ),
+                    onTap: () {
+                      // NEW from here ...
+                      setState(() {
+                        if (alreadySaved) {
+                          context
+                              .read<SavedNotifier>()
+                              .removeFromSaved(_suggestions[index]);
+                        } else {
+                          context
+                              .read<SavedNotifier>()
+                              .addToSaved(_suggestions[index]);
+                        }
+                      }); // to here.
+                    },
+                  );
+                },
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16.0),
+              itemBuilder: (context, i) {
+                if (i.isOdd) return const Divider();
+
+                final index = i ~/ 2;
+
+                if (index >= _suggestions.length) {
+                  _suggestions.addAll(generateWordPairs().take(10));
                 }
-              }); // to here.
-            },
-          );
-        },
-      ),
+                final alreadySaved = context
+                    .watch<SavedNotifier>()
+                    .contains(_suggestions[index]);
+
+                return ListTile(
+                  title: Text(
+                    _suggestions[index].asPascalCase,
+                    style: _biggerFont,
+                  ),
+                  trailing: Icon(
+                    alreadySaved ? Icons.favorite : Icons.favorite_border,
+                    color: alreadySaved ? Colors.red : null,
+                    semanticLabel: alreadySaved ? 'Remove from saved' : 'Save',
+                  ),
+                  onTap: () {
+                    // NEW from here ...
+                    setState(() {
+                      if (alreadySaved) {
+                        context
+                            .read<SavedNotifier>()
+                            .removeFromSaved(_suggestions[index]);
+                      } else {
+                        context
+                            .read<SavedNotifier>()
+                            .addToSaved(_suggestions[index]);
+                      }
+                    }); // to here.
+                  },
+                );
+              },
+            ),
     );
   }
+
+  void _swipeUp() {}
 
   void _pushSaved() {
     Navigator.of(context).push(
@@ -278,6 +447,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   TextEditingController passwordController = TextEditingController();
 
+  TextEditingController confirmController = TextEditingController();
+
   final loginErrorSB = const SnackBar(
     content: Text('There was an error logging into the app'),
   );
@@ -294,6 +465,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     var curr_status = context.watch<AuthNotifier>().status;
+    final _formKey = GlobalKey<FormState>();
 
     if (curr_status == Status.unauthenticated ||
         curr_status == Status.authenticated) {
@@ -369,6 +541,8 @@ class _LoginScreenState extends State<LoginScreen> {
               onPressed: () async {
                 //ScaffoldMessenger.of(context).showSnackBar(snackBar);
                 //var curr_stat = context.watch<AuthNotifier>().status;
+
+                /*
                 UserCredential? success_login = await context
                     .read<AuthNotifier>()
                     .signUp(emailController.text.toString(),
@@ -379,15 +553,86 @@ class _LoginScreenState extends State<LoginScreen> {
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(signUpErrorSB);
                 }
+                */
+                showModalBottomSheet(
+                  context: context,
+                  builder: (context) {
+                    return SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.3 + MediaQuery.of(context).viewInsets.bottom,
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 24.0, left:24, top:14),
+                        child: Column(
+                          children: [
+                            const Text("Please confirm your password below: "),
+                            const Divider(
+                              height: 20,
+                              thickness: 1,
+                              endIndent: 0,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            Form(
+                              key: _formKey,
+                              child: TextFormField(
+                                validator: (value) {
+                                  if (value != passwordController.text) {
+                                    return "Passwords must match";
+                                  }
+                                  return null;
+                                },
+                                controller: confirmController,
+                                obscureText: true,
+                                decoration: InputDecoration(
+                                  //errorText: "Passwords must match",
+                                  border: OutlineInputBorder(),
+                                  hintText: 'Password Confirm',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: () async {
+                                //sign up
+                                if (_formKey.currentState!
+                                    .validate()) //same password
+                                {
+                                  UserCredential? success_login = await context
+                                      .read<AuthNotifier>()
+                                      .signUp(emailController.text.toString(),
+                                          passwordController.text.toString());
+
+                                  if (success_login != null) {
+                                    Navigator.of(context).pop();
+                                    Navigator.of(context).pop();
+                                  } else {
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(signUpErrorSB);
+                                  }
+                                }
+                              },
+                              style: TextButton.styleFrom(
+                                //primary: Colors.white,
+                                backgroundColor: Colors.lightBlue,
+                                //onSurface: Colors.grey,
+                              ),
+                              child: const Text('Confirm',
+                                  style: TextStyle(color: Colors.white)),
+                            )
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
               },
               child: Container(
                 padding: const EdgeInsets.all(16.0),
                 decoration: const BoxDecoration(
-                  color: Colors.deepPurple,
+                  color: Colors.lightBlue,
                   shape: BoxShape.rectangle,
                   borderRadius: BorderRadius.all(Radius.circular(16.0)),
                 ),
-                child: const Text('Sign up',
+                child: const Text('New user? Click to sign up',
                     style: TextStyle(color: Colors.white)),
               )),
         ],
@@ -455,6 +700,7 @@ class AuthNotifier extends ChangeNotifier {
     _auth.authStateChanges().listen((User? firebaseUser) async {
       if (firebaseUser == null) {
         _user = null;
+        _image = null;
         _status = Status.unauthenticated;
       } else {
         _user = firebaseUser;
@@ -465,8 +711,11 @@ class AuthNotifier extends ChangeNotifier {
   }
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+
   Status _status = Status.unauthenticated;
   User? _user;
+  File? _image;
 
   User? get user => _user;
 
@@ -497,6 +746,35 @@ class AuthNotifier extends ChangeNotifier {
       _status = Status.unauthenticated;
       notifyListeners();
       return false;
+    }
+  }
+
+  Future<void> uploadFile(XFile image, String cloudPath) async {
+    var path = '$cloudPath/${_user!.uid}';
+    var fileRef = _storage.ref(path); // cloudPath = “images/profile.jpg”
+    _image = File(image.path);
+    notifyListeners();
+    try {
+      await fileRef.putFile(_image!);
+    } catch (e) {
+      return Future.value(null);
+    }
+  }
+
+  Future<ImageProvider> downloadFile(String cloudPath) async {
+    var path = '$cloudPath/${_user!.uid}';
+
+
+
+    if (_image == null) {
+      // no privious image
+      try {
+        return NetworkImage(await _storage.ref(path).getDownloadURL());
+      } catch(e) {
+        return const AssetImage('images/icon-avatar.png');
+      }
+    } else {
+      return FileImage(_image!);
     }
   }
 
@@ -587,3 +865,5 @@ class SavedNotifier extends ChangeNotifier {
         .set({'pairsArray': data}, SetOptions(merge: true));
   }
 }
+
+//מקלדת לא תקפוץ, תמונה פרופיל?
