@@ -99,6 +99,17 @@ class _RandomWordsState extends State<RandomWords> {
   Widget build(BuildContext context) {
     var curr_status = context.watch<AuthNotifier>().status;
     var pos;
+    const positionStart = SnappingPosition.factor(
+            positionFactor: 0.0,
+            snappingCurve: Curves.easeOutExpo,
+            snappingDuration: Duration(seconds: 1),
+            grabbingContentOffset: GrabbingContentOffset.top,
+          );
+    const positionMiddle = SnappingPosition.factor(
+            snappingCurve: Curves.easeOutExpo,
+            snappingDuration: Duration(seconds: 1),
+            positionFactor: 0.3,
+          );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Startup Name Generator'),
@@ -127,6 +138,10 @@ class _RandomWordsState extends State<RandomWords> {
       body: (curr_status == Status.authenticated)
           ? SnappingSheet(
               controller: snappingSheetController,
+        snappingPositions: const [
+          positionStart,
+          positionMiddle,
+        ],
               grabbing: InkWell(
                   child: Container(
                     color: Colors.grey,
@@ -137,23 +152,23 @@ class _RandomWordsState extends State<RandomWords> {
                           Text(
                               "Welcome back, ${context.read<AuthNotifier>().user?.email}"),
                           (is_open == false)
-                              ? Icon(
+                              ? const Icon(
                                   Icons.keyboard_arrow_up,
                                 )
-                              : Icon(Icons.keyboard_arrow_down)
+                              : const Icon(Icons.keyboard_arrow_down)
                         ]),
                   ),
                   onTap: () {
                     if (is_open == false) {
                       pos = snappingSheetController.currentPosition;
                       snappingSheetController.snapToPosition(
-                        SnappingPosition.factor(positionFactor: 0.3),
+                        positionMiddle
                       );
                       // setState() {
                       is_open = true;
                       // }
                     } else {
-                      snappingSheetController.setSnappingSheetPosition(pos);
+                      snappingSheetController.snapToPosition(positionStart);
                       //  setState() {
                       is_open = false;
                       // }
@@ -169,68 +184,71 @@ class _RandomWordsState extends State<RandomWords> {
                 // TODO: Add your sheet content here
                 child: Container(
                   color: Colors.white,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Flexible(
-                        fit: FlexFit.tight,
-                        flex: 2,
-                        child: FutureBuilder<ImageProvider>(
-                          future: context.watch<AuthNotifier>().downloadFile('Avatar_images'),
-                          // a previously-obtained Future<String> or null
-                          builder: (BuildContext context,
-                              AsyncSnapshot<ImageProvider> snapshot) {
-                            if (snapshot.hasData) {
-                              //image picked
-                              return CircleAvatar(
-                                  foregroundImage: snapshot.requireData);
-                            }
-                            return CircleAvatar();
-                          },
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Flexible(
+                          fit: FlexFit.tight,
+                          flex: 2,
+                          child: FutureBuilder<ImageProvider>(
+                            future: context.watch<AuthNotifier>().downloadFile('Avatar_images'),
+                            // a previously-obtained Future<String> or null
+                            builder: (BuildContext context,
+                                AsyncSnapshot<ImageProvider> snapshot) {
+                              if (snapshot.hasData) {
+                                //image picked
+                                return CircleAvatar(
+                                  radius: 45,
+                                    foregroundImage: snapshot.requireData);
+                              }
+                              return CircleAvatar();
+                            },
+                          ),
                         ),
-                      ),
-                      Flexible(
-                        fit: FlexFit.tight,
-                        flex: 5,
-                        child: Column(
-                          children: [
-                            Text(
-                              "${context.read<AuthNotifier>().user?.email}",
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  height: 5,
-                                  fontSize: 20),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                final ImagePicker _picker = ImagePicker();
-                                //change avatar
-                                final XFile? image = await _picker.pickImage(
-                                    source: ImageSource.gallery);
-
-                                if (image == null) {
-                                  //showing no choice
-                                  ScaffoldMessenger.of(context)
-                                      .showSnackBar(imageErrorSB);
-                                  return;
-                                }
-                                //upload image
-                                context
-                                    .read<AuthNotifier>()
-                                    .uploadFile(image, 'Avatar_images');
-                              },
-                              style: TextButton.styleFrom(
-                                //primary: Colors.white,
-                                backgroundColor: Colors.deepPurple,
-                                //onSurface: Colors.grey,
+                        Flexible(
+                          fit: FlexFit.tight,
+                          flex: 5,
+                          child: Column(
+                            children: [
+                              Text(
+                                "${context.read<AuthNotifier>().user?.email}",
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 20),
                               ),
-                              child: const Text('Change Avatar',
-                                  style: TextStyle(color: Colors.white)),
-                            )
-                          ],
-                        ),
-                      )
-                    ],
+                              TextButton(
+                                onPressed: () async {
+                                  final ImagePicker _picker = ImagePicker();
+                                  //change avatar
+                                  final XFile? image = await _picker.pickImage(
+                                      source: ImageSource.gallery);
+
+                                  if (image == null) {
+                                    //showing no choice
+                                    ScaffoldMessenger.of(context)
+                                        .showSnackBar(imageErrorSB);
+                                    return;
+                                  }
+                                  //upload image
+                                  context
+                                      .read<AuthNotifier>()
+                                      .uploadFile(image, 'Avatar_images');
+                                },
+                                style: TextButton.styleFrom(
+                                  //primary: Colors.white,
+                                  backgroundColor: Colors.deepPurple,
+                                  //onSurface: Colors.grey,
+                                ),
+                                child: const Text('Change Avatar',
+                                    style: TextStyle(color: Colors.white)),
+                              )
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
                   ),
                 ),
               ),
