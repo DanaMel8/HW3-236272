@@ -89,7 +89,7 @@ class _RandomWordsState extends State<RandomWords> {
   );
 
   final imageErrorSB = const SnackBar(
-    content: Text('“No image selected'),
+    content: Text('No image selected'),
   );
 
   final snappingSheetController = SnappingSheetController();
