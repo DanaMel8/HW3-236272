@@ -6,7 +6,7 @@
    The features that it allows the developer are: setting and controlling the position of the snapping sheet, and stopping CurrentSnapping. 
    It also allows to get information from the sheet about its current position, current snapping positions, is it attached ond more.
 2. The parameter that allows the bottom sheet to snap into position with various different
-   animations is: snappingCurve. //???
+   animations is: snappingCurve. 
 3. One advantage of InkWell over GestureDetector:
    It has ripple effect tap.
    One advantage of GestureDetector over InkWell:
